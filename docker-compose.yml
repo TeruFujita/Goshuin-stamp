@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # MySQL データベース
+  mysql:
+    image: mysql:8.0
+    container_name: stamp_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: stamp_db
+      MYSQL_USER: stamp_user
+      MYSQL_PASSWORD: stamp_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d
+    networks:
+      - stamp_network
+
+  # Go バックエンド
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend/Dockerfile
+    container_name: stamp_backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=stamp_db
+      - DB_USER=stamp_user
+      - DB_PASSWORD=stamp_password
+      - JWT_SECRET=your-secret-key-here
+      - S3_BUCKET=stamp-app-uploads
+      - S3_REGION=ap-northeast-1
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - mysql
+    networks:
+      - stamp_network
+
+  # Next.js フロントエンド
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../docker/frontend/Dockerfile
+    container_name: stamp_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - stamp_network
+
+volumes:
+  mysql_data:
+
+networks:
+  stamp_network:
+    driver: bridge
